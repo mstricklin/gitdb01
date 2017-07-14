@@ -1,0 +1,9 @@
+
+1. sanity check on commit
+2. revisions on store
+3. indices
+4. keyIndices
+5. independent keys on V&E?
+6. write/read-through cache
+7. guava 22-android?
+8. Mutable/Immutable impls
