@@ -1,6 +1,7 @@
 package edu.utexas.arlut.ciads;
 
 import com.google.common.collect.Lists;
+import com.tinkerpop.blueprints.Edge;
 import com.tinkerpop.blueprints.Vertex;
 import com.tinkerpop.blueprints.impls.gitdb.GitGraph;
 import lombok.extern.slf4j.Slf4j;
@@ -15,53 +16,52 @@ public class App {
     public static void main(String[] args) throws IOException, IllegalStateException {
         GitGraph g = GitGraph.of();
 
-        List<Vertex> vl = Lists.newArrayList(g.addVertex(null),
-                g.addVertex(null),
-                g.addVertex(null));
+        List<Vertex> vl0 = Lists.newArrayList(g.addVertex(null),
+                                              g.addVertex(null));
 
-        Vertex v1 = g.getVertex(1);
-        Vertex v2 = g.getVertex(2);
-        Vertex v3 = g.getVertex(3);
-        g.removeVertex(v3);
-        g.txDump();
+//        Vertex v1 = g.getVertex(1);
+//        Vertex v2 = g.getVertex(2);
+        //g.removeVertex(v3);
 
-        v1.addEdge("foo", v2);
-        v1.setProperty("aaa", "one");
 
-//        final List<Object> listB = newArrayList();
-//        listB.add("try1");
-//        listB.add(2);
-//        log.info("listB {}", listB);
-//
-//        v1.setProperty("keyListMixed", listB);
-//        log.info("v1 {}", v1);
-//        List<Object> lo = v1.getProperty("keyListMixed");
-//        log.info("lo {}", lo);
-
-        g.txDump();
-        g.baselineDump();
         g.commit();
         g.txDump();
-        g.baselineDump();
+        g.revisionDump();
+        g.repoDump();
 
+        List<Vertex> vl1 = Lists.newArrayList(g.addVertex(null),
+                                              g.addVertex(null));
+
+
+        log.info("");
+        g.commit();
+        g.txDump();
+        g.revisionDump();
+        g.repoDump();
+
+        log.info("");
+        Vertex v1 = g.getVertex(1);
+        g.removeVertex(v1);
+        g.commit();
+        g.txDump();
+        g.revisionDump();
+        g.repoDump();
+
+        log.info("");
+        Vertex v2 = g.getVertex(2);
+        v2.setProperty("aaa", "one");
+        g.commit();
+        g.txDump();
+        g.revisionDump();
+        g.repoDump();
+
+        log.info("");
         v2 = g.getVertex(2);
         v2.setProperty("bbb", "two");
-        log.info("");
-        g.txDump();
-        g.baselineDump();
-
-        log.info("");
         g.commit();
         g.txDump();
-        g.baselineDump();
-
-        log.info("");
-        log.info("remove v2");
-        g.removeVertex(v2);
-        g.txDump();
-        g.commit();
-        g.txDump();
-        g.baselineDump();
+        g.revisionDump();
+        g.repoDump();
 
 
 
@@ -107,8 +107,6 @@ public class App {
 //        v2.setProperty("keyDate", "aaa");
 //        log.info("v2: {}", v2);
 //        log.info("v2: {}", ((XVertexProxy)v2).properties());
-
-
 
 
 //        log.info("===========");

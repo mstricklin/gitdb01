@@ -6,4 +6,6 @@
 5. independent keys on V&E?
 6. write/read-through cache
 7. guava 22-android?
-8. Mutable/Immutable impls
+8. mutable/immutable impls
+9. persist graph-level config
+10. figure out name for 'X'

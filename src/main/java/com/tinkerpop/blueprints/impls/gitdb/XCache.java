@@ -31,7 +31,7 @@ public class XCache {
     public void dump() {
         if (!log.isInfoEnabled())
             return;
-        log.info("=== Baseline dump ===");
+        log.info("=== XCache Baseline dump ===");
         log.info("  Vertices");
         for (XVertex v : Iterables.filter(cache.asMap().values(), XVertex.class)) {
             log.info("\t{} => {}", v.rawId(), v);

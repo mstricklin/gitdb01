@@ -4,31 +4,28 @@ package com.tinkerpop.blueprints.impls.gitdb;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Predicates.in;
 import static com.google.common.base.Predicates.not;
-import static com.google.common.collect.Iterators.concat;
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Queues.newArrayDeque;
 import static com.google.common.collect.Sets.newHashSet;
 import static com.tinkerpop.blueprints.impls.gitdb.GitGraphUtil.castInt;
 
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 
 import com.google.common.collect.*;
 import com.tinkerpop.blueprints.*;
 import com.tinkerpop.blueprints.impls.gitdb.XVertexProxy.XVertex;
 import com.tinkerpop.blueprints.impls.gitdb.XEdgeProxy.XEdge;
+import com.tinkerpop.blueprints.impls.gitdb.store.XStore;
 import com.tinkerpop.blueprints.util.ExceptionFactory;
 import com.tinkerpop.blueprints.util.PropertyFilteredIterable;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class XTransactionGraph implements TransactionalGraph, IndexableGraph, KeyIndexableGraph {
-    XTransactionGraph(final GitGraph gg) {
-        graph = gg;
-    }
-    void addAction(Action a) {
-        actions.add(a);
+    XTransactionGraph(final GitGraph gg, final XStore.XRevision baseline) {
+        log.info("Start new TX '{}'", Thread.currentThread().getName());
+        this.graph = gg;
+        this.baseline = baseline;
     }
     // =================================
     @Override
@@ -57,15 +54,14 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         if (deletedVertices.contains(id))
             return null;
         XVertex v = mutatedVertices.get(id);
-        return null != v ? v
-                         : graph.repo().getVertex(id);
+        return (null == v) ? XStoreFacade.getVertex(baseline, id) : v;
     }
     XVertex mutableVertexImpl(int id) {
         if (deletedVertices.contains(id))
             return null;
         if (mutatedVertices.containsKey(id))
             return mutatedVertices.get(id);
-        XVertex xv = graph.repo().getVertex(id);
+        XVertex xv = XStoreFacade.getVertex(baseline, id);
         if (null != xv) {
             XVertex xvm = new XVertex(xv);
             mutatedVertices.put(xvm.rawId(), xvm);
@@ -98,28 +94,24 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
 
         // union the baseline vertices to the transaction vertices. Unfortunately,
         // we need to flatten from iterables, b/c we need to compare the two sets.
-        Set<Integer> u = Sets.union(newHashSet(graph.repo().getVertices()),
+        Set<Integer> u = Sets.union(newHashSet(XStoreFacade.getVertices(baseline)),
                                     mutatedVertices.keySet());
+
         // Then filter out the deleted vertices.
-//        Iterable<Integer> ief = Iterables.filter(u, not(in(deletedVertices)));
-//        Iterable<XVertexProxy> vpi2 = Iterables.transform(ief, XVertexProxy.makeVertex(graph));
-//        return new ImmutableSet.Builder<Vertex>().addAll(vpi2).build();
         return FluentIterable.from(u)
                              .filter(not(in(deletedVertices)))
                              .transform(XVertexProxy.makeVertex(graph))
                              .transform(XVertexProxy.UPCAST);
 
-
         // May be a more efficient implementation than flattening everything. The mutated keys
         // (are probably much) smaller set, so take the (probably much) larger baseline keys,
         // remove the duplicated mutated keys, then add the mutated keys back
-//        Iterable<Integer> a1 = Iterables.filter(graph.repo().getVertices(), not(in(mutatedVertices.keySet())));
-//        Iterable<Integer> a2 = Iterables.concat(a1, mutatedVertices.keySet());
-//        Iterable<Integer> a3 = Iterables.filter(graph.repo().getVertices(), not(in(deletedVertices)));
-//        Iterable<XVertexProxy> a4 = Iterables.transform(a3, XVertexProxy.makeVertex(graph));
-//        return new ImmutableList.Builder<Vertex>()
-//                .addAll(a4)
-//                .build();
+//        return FluentIterable.from(XStoreFacade.getVertices(baseline))
+//                             .filter(not(in(mutatedVertices.keySet())))
+//                             .append(mutatedVertices.keySet())
+//                             .filter(not(in(deletedVertices)))
+//                             .transform(XVertexProxy.makeVertex(graph))
+//                             .transform(XVertexProxy.UPCAST);
     }
 
     @Override
@@ -165,15 +157,14 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         if (deletedEdges.contains(id))
             return null;
         XEdge e = mutatedEdges.get(id);
-        return null != e ? e
-                         : graph.repo().getEdge(id);
+        return (null == e) ? XStoreFacade.getEdge(baseline, id) : e;
     }
     XEdge mutableEdgeImpl(int id) {
         if (deletedEdges.contains(id))
             return null;
         if (mutatedEdges.containsKey(id))
             return mutatedEdges.get(id);
-        XEdge xe = graph.repo().getEdge(id);
+        XEdge xe = XStoreFacade.getEdge(baseline, id);
         if (null != xe) {
             XEdge xem = new XEdge(xe);
             mutatedEdges.put(xem.rawId(), xem);
@@ -189,7 +180,6 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
             checkNotNull(edge);
 
             XEdgeProxy ep = (XEdgeProxy)edge;
-            log.info("Edge Proxy {}", ep);
 
             XVertexProxy vOut = ep.getOutVertex();
             vOut.removeEdge(ep.rawId());
@@ -197,7 +187,6 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
             XVertexProxy vIn = ep.getInVertex();
             vIn.removeEdge(ep.rawId());
 
-            addAction(new Action.RemoveEdge(ep.rawId(), graph.repo()));
             mutatedEdges.remove(ep.rawId());
             deletedEdges.add(ep.rawId());
         } catch (XCache.NotFoundException e) {
@@ -209,7 +198,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     public Iterable<Edge> getEdges() {
         // Union the baseline edges to the transaction vertices. Unfortunately,
         // we need to flatten from iterables, b/c we need to compare the two sets.
-        Set<Integer> u = Sets.union(newHashSet(graph.repo().getEdges()),
+        Set<Integer> u = Sets.union(newHashSet(XStoreFacade.getEdges(baseline)),
                                     mutatedEdges.keySet());
         // Then filter out the deleted edges.
         return FluentIterable.from(u)
@@ -220,7 +209,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         // May be a more efficient implementation than flattening everything. The mutated keys
         // (are probably much) smaller set, so take the (probably much) larger baseline keys,
         // remove the duplicated mutated keys, then add the mutated keys back
-//        return FluentIterable.from(graph.repo().getEdges())
+//        return FluentIterable.from(XStoreFacade.getEdges(baseline))
 //                             .filter(not(in(mutatedEdges.keySet())))
 //                             .append(mutatedEdges.keySet())
 //                             .filter(not(in(deletedEdges)))
@@ -256,7 +245,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     @Deprecated
     @Override
     public void stopTransaction(Conclusion conclusion) {
-        // why are we forced to override deprecated methods?
+        // *sigh* why are we forced to override deprecated methods?
     }
 
     @Override
@@ -268,16 +257,26 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     public void commit() {
         // TODO: check sanity of graph
         log.trace("=== TX '{}' Commit ===", Thread.currentThread().getName());
-        for (XVertex xv : mutatedVertices.values())
-            graph.repo().addVertex(xv);
-        for (Integer key : deletedVertices)
-            graph.repo().removeVertex(key);
-        for (XEdge xe : mutatedEdges.values())
-            graph.repo().addEdge(xe);
-        for (Integer key : deletedEdges)
-            graph.repo().removeEdge(key);
+//        for (XVertex xv : mutatedVertices.values())
+//            graph.repo().addVertex(xv);
+//        for (Integer key : deletedVertices)
+//            graph.repo().removeVertex(key);
+//        for (XEdge xe : mutatedEdges.values())
+//            graph.repo().addEdge(xe);
+//        for (Integer key : deletedEdges)
+//            graph.repo().removeEdge(key);
 
+        for (XVertex xv : mutatedVertices.values())
+            XStoreFacade.addVertex(baseline, xv);
+        for (Integer key : deletedVertices)
+            XStoreFacade.removeVertex(baseline, key);
+        for (XEdge xe : mutatedEdges.values())
+            XStoreFacade.addEdge(baseline, xe);
+        for (Integer key : deletedEdges)
+            XStoreFacade.removeEdge(baseline, key);
+        baseline.commit();
         clear();
+        log.info("end commit");
     }
 
     @Override
@@ -301,19 +300,19 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     void dump() {
         if (!log.isInfoEnabled())
             return;
-        log.info("=== transaction '{}' dump ===", Thread.currentThread().getName());
+        log.info("=== TX '{}' dump ===", Thread.currentThread().getName());
         if (!mutatedVertices.isEmpty() || !deletedVertices.isEmpty()) {
             log.info("  Vertices {}", mutatedVertices.size());
-            for (Map.Entry<Integer, XVertex> e : mutatedVertices.entrySet()) {
-                log.info("\t{} => {}", e.getKey(), e.getValue());
+            for (XVertex xv : mutatedVertices.values()) {
+                log.info("\t{}", xv);
             }
             if (!deletedVertices.isEmpty())
                 log.info("\tX {}", deletedVertices);
         }
         if (!mutatedEdges.isEmpty() || !deletedEdges.isEmpty()) {
             log.info("  Edges {}", mutatedEdges.size());
-            for (Map.Entry<Integer, XEdge> e : mutatedEdges.entrySet()) {
-                log.info("\t{} => {}", e.getKey(), e.getValue());
+            for (XEdge xe : mutatedEdges.values()) {
+                log.info("\t{}", xe);
             }
             if (!deletedEdges.isEmpty())
                 log.info("\tX {}", deletedEdges);
@@ -321,31 +320,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     }
     // =================================
 
-//    private Map<Long, XVertex> mutatedEdges = newHashMap();
-//    private Set<Long> deletedEdges = newHashSet();
-//
-//    private Lazy<Map<Long, XVertex>> mutatedVertices = new Lazy<Map<Long, XVertex>>() {
-//        @Override public Map<Long, XVertex> get() {
-//            return newHashMap();
-//        }
-//    };
-//    private Lazy<Set<Long>> deletedVertices = new Lazy<Set<Long>>() {
-//        @Override public Set<Long> get() {
-//            return newHashSet();
-//        }
-//    };
-//
-//
-//    private static <T> Map<Long, T> foo() {
-//        return newHashMap();
-//    }
-//    private Map<Long, XVertex> z = foo();
 
-    private Map<Integer, XVertex> mutatedVertices = newHashMap();
-    private Set<Integer> deletedVertices = newHashSet();
-
-    private Map<Integer, XEdge> mutatedEdges = newHashMap();
-    private Set<Integer> deletedEdges = newHashSet();
 
     // keyIndices
     // indices
@@ -388,6 +363,13 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
 
     // =================================
     private final GitGraph graph;
-    private final Queue<Action> actions = newArrayDeque();
+
+    private Map<Integer, XVertex> mutatedVertices = newHashMap();
+    private Set<Integer> deletedVertices = newHashSet();
+
+    private Map<Integer, XEdge> mutatedEdges = newHashMap();
+    private Set<Integer> deletedEdges = newHashSet();
+
+    XStore.XRevision baseline;
 
 }

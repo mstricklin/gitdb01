@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.tinkerpop.blueprints.*;
 
+import com.tinkerpop.blueprints.impls.gitdb.store.XStore;
 import com.tinkerpop.blueprints.util.StringFactory;
 import lombok.extern.slf4j.Slf4j;
 
@@ -90,6 +91,8 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
     public GitGraph() throws IOException {
         idCounter.set(1);
         cache = XCache.of(this);
+        store = new XStore(); // TODO
+        //revision = XStore.XRevision.of(null, store);
     }
 
     @Override
@@ -97,16 +100,16 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         return FEATURES;
     }
 
-    public void baselineDump() {
-        repo().dump();
+    public void repoDump() {
+        store.dump();
+    }
+
+    public void revisionDump() {
+        revision.dump();
     }
 
     public void txDump() {
         tx().dump();
-    }
-
-    XTransactionGraph tx() {
-        return threadTransaction.get();
     }
 
     XCache repo() {
@@ -138,11 +141,6 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
     @Override
     public Iterable<Vertex> getVertices() {
         return tx().getVertices();
-    }
-
-    Iterator<Integer> vertices() {
-        // TODO: move to repo
-        return Collections.emptyIterator();
     }
 
     @Override
@@ -177,11 +175,6 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         return tx().getEdges();
     }
 
-    Iterator<Integer> edges() {
-        // TODO: move to repo
-        return Collections.emptyIterator();
-    }
-
     @Override
     public Iterable<Edge> getEdges(String key, Object value) {
         return tx().getEdges(key, value);
@@ -193,6 +186,10 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         return tx().query();
     }
     // =================================
+    XTransactionGraph tx() {
+        return threadTransaction.get();
+    }
+
     @Override
     public void shutdown() {
         // TODO: keep a list of transactions & commit
@@ -201,11 +198,13 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
     public void commit() {
         // should we lock here?
         tx().commit();
+        threadTransaction.remove();
     }
 
     @Override
     public void rollback() {
         tx().rollback();
+        threadTransaction.remove();
     }
 
     @Deprecated
@@ -235,7 +234,7 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         tx().dropIndex(indexName);
     }
 
-    // KeyIndex add index to existing key/value properties
+    // KeyIndex adds lookup to existing key/value properties
     @Override
     public <T extends Element> void createKeyIndex(String key, Class<T> elementClass, Parameter[] indexParameters) {
         tx().createKeyIndex(key, elementClass, indexParameters);
@@ -261,22 +260,25 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
     // =================================
     private final AtomicInteger idCounter = new AtomicInteger();
     int nextId() {
-        // TODO: move to repo!!!
+        // TODO: move to repo?
         return idCounter.getAndIncrement();
     }
 
     // =================================
+
     private ThreadLocal<XTransactionGraph> threadTransaction = new ThreadLocal<XTransactionGraph>() {
         @Override
         protected XTransactionGraph initialValue() {
-            return new XTransactionGraph(GitGraph.this);
+//            return new XTransactionGraph(GitGraph.this, revision);
+            revision = XStore.XRevision.of(store.getHead(), store);
+            return new XTransactionGraph(GitGraph.this, revision);
         }
     };
     private final GitKeyIndex<XVertexProxy> vertexKeyIndex = new GitKeyIndex(XVertexProxy.class, this);
     private final GitKeyIndex<XEdgeProxy> edgeKeyIndex = new GitKeyIndex(XEdgeProxy.class, this);
 
-
-
     private final XCache cache;
+    private final XStore store;
+    private XStore.XRevision revision;
 
 }
