@@ -10,6 +10,7 @@ import static com.tinkerpop.blueprints.impls.gitdb.GitGraphUtil.castInt;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.*;
 import com.tinkerpop.blueprints.*;
@@ -23,11 +24,11 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class XTransactionGraph implements TransactionalGraph, IndexableGraph, KeyIndexableGraph {
     XTransactionGraph(final GitGraph gg, final XStore.XRevision baseline) {
-        log.info("Start new TX '{}'", Thread.currentThread().getName());
         this.graph = gg;
         this.baseline = baseline;
+        this.name = Integer.toString(transactionCounter.getAndIncrement()) + " (" + Thread.currentThread().getName() + ')';
+        log.info("Start new TX '{}'", this);
     }
-
     // =================================
     @Override
     public Vertex addVertex(Object id) {
@@ -262,28 +263,49 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
 
     @Override
     public void commit() {
-        // TODO: check sanity of graph
-        log.trace("=== TX '{}' Commit ===", Thread.currentThread().getName());
-//        for (XVertex xv : mutatedVertices.values())
-//            graph.repo().addVertex(xv);
-//        for (Integer key : deletedVertices)
-//            graph.repo().removeVertex(key);
-//        for (XEdge xe : mutatedEdges.values())
-//            graph.repo().addEdge(xe);
-//        for (Integer key : deletedEdges)
-//            graph.repo().removeEdge(key);
+        // TODO: check sanity of graph?
+        log.info("=== TX '{}' Commit >>>", this);
 
-        for (XVertex xv : mutatedVertices.values())
-            XStoreFacade.addVertex(baseline, xv);
-        for (Integer key : deletedVertices)
-            XStoreFacade.removeVertex(baseline, key);
-        for (XEdge xe : mutatedEdges.values())
-            XStoreFacade.addEdge(baseline, xe);
-        for (Integer key : deletedEdges)
-            XStoreFacade.removeEdge(baseline, key);
-        baseline.commit();
-        clear();
-        log.info("end commit");
+        graph.repo().lock();
+
+        XStore.XRevision head = graph.repo().getHead();
+        if (baseline.equals(head)) { // TODO check chain for branches
+            // we're a fast-forward, take everything as it comes
+            log.info("FAST_FORWARD");
+            log.info("baseline {}", baseline);
+            log.info("head {}", head);
+            XStore.XWorking rev = XStore.XWorking.of(baseline);
+
+            for (XVertex xv : mutatedVertices.values())
+                XStoreFacade.addVertex(rev, xv);
+            for (Integer key : deletedVertices)
+                XStoreFacade.removeVertex(rev, key);
+            for (XEdge xe : mutatedEdges.values())
+                XStoreFacade.addEdge(rev, xe);
+            for (Integer key : deletedEdges)
+                XStoreFacade.removeEdge(rev, key);
+            rev.commit();
+            clear();
+            log.info("\t<<< end commit ===");
+        } else {
+            log.error("NOT A FAST_FORWARD!!");
+            log.error("baseline {}", baseline);
+            log.error("head {}", head);
+            XStore.XWorking rev = XStore.XWorking.of(head);
+
+            for (XVertex xv : mutatedVertices.values())
+                XStoreFacade.addVertex(rev, xv);
+            for (Integer key : deletedVertices)
+                XStoreFacade.removeVertex(rev, key);
+            for (XEdge xe : mutatedEdges.values())
+                XStoreFacade.addEdge(rev, xe);
+            for (Integer key : deletedEdges)
+                XStoreFacade.removeEdge(rev, key);
+            rev.commit();
+            clear();
+            log.info("\t<<< end commit ===");
+        }
+        graph.repo().unlock();
     }
 
     @Override
@@ -307,7 +329,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     void dump() {
         if (!log.isInfoEnabled())
             return;
-        log.info("=== TX '{}' dump ===", Thread.currentThread().getName());
+        log.info("=== TX '{}' dump ===", this);
         if (!mutatedVertices.isEmpty() || !deletedVertices.isEmpty()) {
             log.info("  Vertices {}", mutatedVertices.size());
             for (XVertex xv : mutatedVertices.values()) {
@@ -366,6 +388,11 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     public <T extends Element> Set<String> getIndexedKeys(Class<T> elementClass) {
         return null;
     }
+    // =================================
+    @Override
+    public String toString() {
+        return name;
+    }
 
     // =================================
     private final GitGraph graph;
@@ -378,4 +405,6 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
 
     XStore.XRevision baseline;
 
+    private static final AtomicInteger transactionCounter = new AtomicInteger(0);
+    final String name;
 }

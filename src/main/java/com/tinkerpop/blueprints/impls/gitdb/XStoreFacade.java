@@ -5,10 +5,11 @@ import com.tinkerpop.blueprints.impls.gitdb.XEdgeProxy.XEdge;
 import com.tinkerpop.blueprints.impls.gitdb.XVertexProxy.XVertex;
 import com.tinkerpop.blueprints.impls.gitdb.store.XStore;
 import com.tinkerpop.blueprints.impls.gitdb.store.XStore.XRevision;
+import com.tinkerpop.blueprints.impls.gitdb.store.XStore.XWorking;
 
 public class XStoreFacade {
 
-    static int addVertex(XRevision rev, XVertex v) {
+    static int addVertex(XWorking rev, XVertex v) {
         return rev.put(v);
     }
 
@@ -16,7 +17,7 @@ public class XStoreFacade {
         return (XVertex) rev.get(id);
     }
 
-    static void removeVertex(XRevision rev, int id) {
+    static void removeVertex(XWorking rev, int id) {
         rev.remove(id);
     }
 
@@ -27,7 +28,7 @@ public class XStoreFacade {
     }
 
     // =================================
-    static int addEdge(XRevision rev, XEdge v) {
+    static int addEdge(XWorking rev, XEdge v) {
         return rev.put(v);
     }
 
@@ -35,7 +36,7 @@ public class XStoreFacade {
         return (XEdge) rev.get(id);
     }
 
-    static void removeEdge(XRevision rev, int id) {
+    static void removeEdge(XWorking rev, int id) {
         rev.remove(id);
     }
 

@@ -26,70 +26,68 @@ public class App {
         //g.removeVertex(v3);
 
 
-        g.commit();
         g.txDump();
-        g.revisionDump();
+        g.commit();
         g.repoDump();
 
+
+        log.info("");
         List<Vertex> vl1 = Lists.newArrayList(g.addVertex(null),
                                               g.addVertex(null));
-
-
-        log.info("");
-        g.commit();
         g.txDump();
-        g.revisionDump();
-        g.repoDump();
-
-        log.info("");
-        Vertex v1 = g.getVertex(1);
-        g.removeVertex(v1);
         g.commit();
-        g.txDump();
-        g.revisionDump();
         g.repoDump();
 
         log.info("");
         Vertex v2 = g.getVertex(2);
-        v2.setProperty("aaa", "one");
-        g.commit();
+        log.info("v2 {}", v2);
+        g.removeVertex(v2);
         g.txDump();
-        g.revisionDump();
+        g.commit();
         g.repoDump();
 
-        log.info("");
         v2 = g.getVertex(2);
-        v2.setProperty("bbb", "two");
-        g.commit();
-        g.txDump();
-        g.revisionDump();
-        g.repoDump();
+        log.info("v2 {}", v2);
 
-        log.info("===========");
-        int totalThreads = 2;
-        final AtomicInteger expectedVertices = new AtomicInteger(0);
-        final AtomicInteger completedThreads = new AtomicInteger(0);
-        final List<Thread> threads = newArrayList();
-
-        final GitGraph tgraph = GitGraph.of();;
-        for (int i = 0; i < totalThreads; i++) {
-            Thread t  = new Thread() {
-                public void run() {
-                    Vertex a = tgraph.addVertex(null);
-                    expectedVertices.getAndAdd(1);
-                    tgraph.commit();
-                    completedThreads.getAndAdd(1);
-                }
-            };
-            t.start();
-            threads.add(t);
+//        log.info("");
+//        Vertex v3 = g.getVertex(3);
+//        v3.setProperty("aaa", "one");
+//        g.commit();
+//        g.txDump();
+//        g.repoDump();
+//
+//        log.info("");
+//        v3 = g.getVertex(3);
+//        v3.setProperty("bbb", "two");
+//        g.commit();
+//        g.txDump();
+//        g.repoDump();
+//
+//        log.info("===========");
+//        int totalThreads = 2;
+//        final AtomicInteger expectedVertices = new AtomicInteger(0);
+//        final AtomicInteger completedThreads = new AtomicInteger(0);
+//        final List<Thread> threads = newArrayList();
+//
+//        final GitGraph tgraph = GitGraph.of();;
+//        for (int i = 0; i < totalThreads; i++) {
+//            Thread t  = new Thread() {
+//                public void run() {
+//                    Vertex a = tgraph.addVertex(null);
+//                    expectedVertices.getAndAdd(1);
+//                    tgraph.commit();
+//                    completedThreads.getAndAdd(1);
+//                }
+//            };
+//            t.start();
+//            threads.add(t);
+////            t.join();
+//
+//        }
+//        for (Thread t: threads)
 //            t.join();
-
-        }
-        for (Thread t: threads)
-            t.join();
-        log.info("completedThreads {}", completedThreads.get());
-        log.info("vertex count {}/{}", expectedVertices.get(), size(tgraph.getVertices()));
+//        log.info("completedThreads {}", completedThreads.get());
+//        log.info("vertex count {}/{}", expectedVertices.get(), size(tgraph.getVertices()));
 
 
 //        Vertex a = tgraph.addVertex(null);

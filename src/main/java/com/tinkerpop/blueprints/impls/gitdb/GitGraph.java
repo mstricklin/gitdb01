@@ -5,8 +5,6 @@ import static com.tinkerpop.blueprints.impls.gitdb.XEdgeProxy.*;
 import static com.tinkerpop.blueprints.impls.gitdb.XVertexProxy.XVertex;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -92,7 +90,7 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         idCounter.set(1);
         cache = XCache.of(this);
         store = new XStore(); // TODO
-        //revision = XStore.XRevision.of(null, store);
+        //revision = XStore.XWorking.of(null, store);
     }
 
     @Override
@@ -104,16 +102,16 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         store.dump();
     }
 
-    public void revisionDump() {
-        revision.dump();
-    }
-
     public void txDump() {
         tx().dump();
     }
 
-    XCache repo() {
-        return this.cache;
+//    XCache repo() {
+//        return this.cache;
+//    }
+
+    public XStore repo() {
+        return this.store;
     }
 
     // =================================
@@ -188,6 +186,12 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
     // =================================
     XTransactionGraph tx() {
         return threadTransaction.get();
+    }
+
+    public XTransactionGraph beginTx() {
+        log.info("beginTx");
+        threadTransaction.remove();
+        return tx();
     }
 
     @Override
@@ -270,8 +274,8 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
         @Override
         protected XTransactionGraph initialValue() {
 //            return new XTransactionGraph(GitGraph.this, revision);
-            revision = XStore.XRevision.of(store.getHead(), store);
-            return new XTransactionGraph(GitGraph.this, revision);
+//            revision = XStore.XWorking.of(store.getHead(), store);
+            return new XTransactionGraph(GitGraph.this, store.getHead());
         }
     };
     private final GitKeyIndex<XVertexProxy> vertexKeyIndex = new GitKeyIndex(XVertexProxy.class, this);
@@ -279,6 +283,5 @@ public class GitGraph implements TransactionalGraph, IndexableGraph, KeyIndexabl
 
     private final XCache cache;
     private final XStore store;
-    private XStore.XRevision revision;
 
 }

@@ -918,9 +918,9 @@ public class TransactionalGraphTestSuite extends TestSuite {
                     throw new RuntimeException(ie);
                 }
 
-                // System.out.println("reading vertex before tx");
+                log.info("reading vertex before tx");
                 assertFalse(tgraph.getVertices().iterator().hasNext());
-                // System.out.println("read vertex before tx");
+                log.info("read vertex before tx");
 
                 latchCommit.countDown();
 
@@ -930,9 +930,13 @@ public class TransactionalGraphTestSuite extends TestSuite {
                     throw new RuntimeException(ie);
                 }
 
-                // System.out.println("reading vertex after tx");
+                log.info("trying commit...");
+                gg.beginTx();
+//                tgraph.commit();
+                log.info("reading vertex after {}", gg.repo().getHead());
+
                 assertTrue(tgraph.getVertices().iterator().hasNext());
-                // System.out.println("read vertex after tx");
+                log.info("read vertex after tx");
             }
         };
 
