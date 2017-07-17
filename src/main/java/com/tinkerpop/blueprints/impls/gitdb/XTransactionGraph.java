@@ -27,6 +27,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         this.graph = gg;
         this.baseline = baseline;
     }
+
     // =================================
     @Override
     public Vertex addVertex(Object id) {
@@ -56,6 +57,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         XVertex v = mutatedVertices.get(id);
         return (null == v) ? XStoreFacade.getVertex(baseline, id) : v;
     }
+
     XVertex mutableVertexImpl(int id) {
         if (deletedVertices.contains(id))
             return null;
@@ -81,7 +83,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
             for (Edge e : vertex.getEdges(Direction.IN)) {
                 removeEdge(e);
             }
-            Integer key = ((XVertexProxy)vertex).rawId();
+            Integer key = ((XVertexProxy) vertex).rawId();
             mutatedVertices.remove(key);
             deletedVertices.add(key);
         } catch (XCache.NotFoundException e) {
@@ -101,7 +103,8 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         return FluentIterable.from(u)
                              .filter(not(in(deletedVertices)))
                              .transform(XVertexProxy.makeVertex(graph))
-                             .transform(XVertexProxy.UPCAST);
+                             .transform(XVertexProxy.UPCAST)
+                             .toList();
 
         // May be a more efficient implementation than flattening everything. The mutated keys
         // (are probably much) smaller set, so take the (probably much) larger baseline keys,
@@ -127,8 +130,8 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         // TODO: add to indices
         if (label == null)
             throw ExceptionFactory.edgeLabelCanNotBeNull();
-        XVertexProxy oV = (XVertexProxy)outVertex;
-        XVertexProxy iV = (XVertexProxy)inVertex;
+        XVertexProxy oV = (XVertexProxy) outVertex;
+        XVertexProxy iV = (XVertexProxy) inVertex;
         // Check: are these real vertices?
         XEdge xe = new XEdge(graph.nextId(), oV.rawId(), iV.rawId(), label);
         mutatedEdges.put(xe.rawId(), xe);
@@ -159,6 +162,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         XEdge e = mutatedEdges.get(id);
         return (null == e) ? XStoreFacade.getEdge(baseline, id) : e;
     }
+
     XEdge mutableEdgeImpl(int id) {
         if (deletedEdges.contains(id))
             return null;
@@ -179,7 +183,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         try {
             checkNotNull(edge);
 
-            XEdgeProxy ep = (XEdgeProxy)edge;
+            XEdgeProxy ep = (XEdgeProxy) edge;
 
             XVertexProxy vOut = ep.getOutVertex();
             vOut.removeEdge(ep.rawId());
@@ -204,7 +208,8 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         return FluentIterable.from(u)
                              .filter(not(in(deletedEdges)))
                              .transform(XEdgeProxy.makeEdge(graph))
-                             .transform(XEdgeProxy.UPCAST);
+                             .transform(XEdgeProxy.UPCAST)
+                             .toList();
 
         // May be a more efficient implementation than flattening everything. The mutated keys
         // (are probably much) smaller set, so take the (probably much) larger baseline keys,
@@ -235,6 +240,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     public GraphQuery query() {
         return null;
     }
+
     // =================================
     private void clear() {
         mutatedVertices.clear();
@@ -242,6 +248,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         mutatedEdges.clear();
         deletedEdges.clear();
     }
+
     @Deprecated
     @Override
     public void stopTransaction(Conclusion conclusion) {
@@ -319,7 +326,6 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         }
     }
     // =================================
-
 
 
     // keyIndices

@@ -8,12 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.google.common.collect.Iterables.size;
 import static com.google.common.collect.Lists.newArrayList;
 
 @Slf4j
 public class App {
-    public static void main(String[] args) throws IOException, IllegalStateException {
+    public static void main(String[] args) throws IOException, IllegalStateException, InterruptedException {
         GitGraph g = GitGraph.of();
 
         List<Vertex> vl0 = Lists.newArrayList(g.addVertex(null),
@@ -62,6 +64,38 @@ public class App {
         g.txDump();
         g.revisionDump();
         g.repoDump();
+
+        log.info("===========");
+        int totalThreads = 2;
+        final AtomicInteger expectedVertices = new AtomicInteger(0);
+        final AtomicInteger completedThreads = new AtomicInteger(0);
+        final List<Thread> threads = newArrayList();
+
+        final GitGraph tgraph = GitGraph.of();;
+        for (int i = 0; i < totalThreads; i++) {
+            Thread t  = new Thread() {
+                public void run() {
+                    Vertex a = tgraph.addVertex(null);
+                    expectedVertices.getAndAdd(1);
+                    tgraph.commit();
+                    completedThreads.getAndAdd(1);
+                }
+            };
+            t.start();
+            threads.add(t);
+//            t.join();
+
+        }
+        for (Thread t: threads)
+            t.join();
+        log.info("completedThreads {}", completedThreads.get());
+        log.info("vertex count {}/{}", expectedVertices.get(), size(tgraph.getVertices()));
+
+
+//        Vertex a = tgraph.addVertex(null);
+//        Vertex b = tgraph.addVertex(null);
+//        Edge e = tgraph.addEdge(null, a, b, "friend");
+//        tgraph.commit();
 
 
 

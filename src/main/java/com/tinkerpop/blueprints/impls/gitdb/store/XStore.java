@@ -86,6 +86,7 @@ public class XStore {
 
         public void commit() {
             log.info("commit revision {}", revId);
+            // TODO a merge here...
             store.head = this;
         }
 
