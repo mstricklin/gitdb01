@@ -7,6 +7,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 
+import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -44,7 +45,7 @@ public class XStore {
     }
 
     // synchronize?
-    private int put(Object o) {
+    Integer put(Object o) {
         Integer id = objectCounter.getAndIncrement();
         cache.put(id, o);
         return id;
@@ -57,19 +58,19 @@ public class XStore {
     // =================================
     private abstract static class XAbstractRevision {
         private XAbstractRevision(XStore s) {
+            this.revId = objectCounter.getAndIncrement();
             this.store = s;
-            revId = objectCounter.getAndIncrement();
-            baseline = null;
+            this.baseline = null;
         }
         private XAbstractRevision(XAbstractRevision rev) {
             this.revId = rev.revId;
             this.store = rev.store;
             this.baseline = rev.baseline;
         }
-        protected Integer lookup(int k) {
+        protected Integer lookup(Integer k) {
             return getIndex().get(k);
         }
-        public Object get(int key) {
+        public Object get(Integer key) {
             Integer id = lookup(key);
             return null != id ? store.get(id) : null;
         }
@@ -77,7 +78,7 @@ public class XStore {
             return FluentIterable.from(getIndex().values())
                                  .transform(Functions.forMap(store.cache.asMap()));
         }
-        abstract Map<Integer, Integer> getIndex();
+        abstract protected Map<Integer, Integer> getIndex();
         @Override
         public int hashCode() {
             return revId;
@@ -88,7 +89,6 @@ public class XStore {
         public boolean equals(Object other) {
             if (other == this) return true;
             if (other == null) return false;
-//            if (getClass() != other.getClass()) return false;
             if (! (other instanceof XAbstractRevision)) return false;
             XAbstractRevision otherA = (XAbstractRevision)other;
             return revId.equals(otherA.revId);
@@ -96,13 +96,13 @@ public class XStore {
         public void dump() {
             if (!log.isInfoEnabled())
                 return;
-            log.info("=== revision '{}' dump ===", revId);
+            log.info("=== '{}' dump ===", this);
             for (Integer id : getIndex().values()) {
                 Object o = store.cache.getIfPresent(id);
                 log.info("\t{} => {}", id, o);
             }
         }
-        final Integer revId;
+        protected Integer revId;
         protected final XStore store;
         protected final XAbstractRevision baseline;
         //        private final XRevision baseline;
@@ -128,7 +128,7 @@ public class XStore {
             revId = objectCounter.getAndIncrement();
             this.index = ImmutableMap.copyOf(w.index);
         }
-        Map<Integer, Integer> getIndex() {
+        protected Map<Integer, Integer> getIndex() {
             return index;
         }
         public String toString() {
@@ -158,25 +158,22 @@ public class XStore {
             log.info("new XWorking from baseline {}", revId);
         }
 
-        public int put(Keyed k) {
-            int id = store.put(k);
-            log.info("put OID {} ({})", id, k.rawId());
-            index.put(k.rawId(), id);
-            return id;
+        public void put(Iterable<Keyed> it) {
+            for (Keyed k: it)
+                index.put(k.rawId(), store.put(k));
         }
 
-        public void remove(int id) {
-            log.info("remove OID {} ({})", lookup(id), id);
-            index.remove(id);
+        public void remove(Iterable<Integer> it) {
+            for (Integer k: it)
+                index.remove(k);
         }
 
         public void commit() {
-            log.info("commit working tree {} sz {}", revId, index.size());
-            // TODO a merge here...
+            log.info("commit {} sz {}", this, index.size());
             XRevision rev = XRevision.of(this);
             store.head = rev;
         }
-        Map<Integer, Integer> getIndex() {
+        protected Map<Integer, Integer> getIndex() {
             return index;
         }
 

@@ -27,8 +27,9 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
         this.graph = gg;
         this.baseline = baseline;
         this.name = Integer.toString(transactionCounter.getAndIncrement()) + " (" + Thread.currentThread().getName() + ')';
-        log.info("Start new TX '{}'", this);
+        log.trace("Start new TX '{}'", this);
     }
+
     // =================================
     @Override
     public Vertex addVertex(Object id) {
@@ -263,48 +264,28 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
 
     @Override
     public void commit() {
-        // TODO: check sanity of graph?
         log.info("=== TX '{}' Commit >>>", this);
 
-        graph.repo().lock();
+        graph.repo().lock(); // TODO: lock target revision only?
 
         XStore.XRevision head = graph.repo().getHead();
         if (baseline.equals(head)) { // TODO check chain for branches
-            // we're a fast-forward, take everything as it comes
             log.info("FAST_FORWARD");
-            log.info("baseline {}", baseline);
-            log.info("head {}", head);
-            XStore.XWorking rev = XStore.XWorking.of(baseline);
-
-            for (XVertex xv : mutatedVertices.values())
-                XStoreFacade.addVertex(rev, xv);
-            for (Integer key : deletedVertices)
-                XStoreFacade.removeVertex(rev, key);
-            for (XEdge xe : mutatedEdges.values())
-                XStoreFacade.addEdge(rev, xe);
-            for (Integer key : deletedEdges)
-                XStoreFacade.removeEdge(rev, key);
-            rev.commit();
-            clear();
-            log.info("\t<<< end commit ===");
         } else {
-            log.error("NOT A FAST_FORWARD!!");
-            log.error("baseline {}", baseline);
-            log.error("head {}", head);
-            XStore.XWorking rev = XStore.XWorking.of(head);
-
-            for (XVertex xv : mutatedVertices.values())
-                XStoreFacade.addVertex(rev, xv);
-            for (Integer key : deletedVertices)
-                XStoreFacade.removeVertex(rev, key);
-            for (XEdge xe : mutatedEdges.values())
-                XStoreFacade.addEdge(rev, xe);
-            for (Integer key : deletedEdges)
-                XStoreFacade.removeEdge(rev, key);
-            rev.commit();
-            clear();
-            log.info("\t<<< end commit ===");
+            log.info("NOT A FAST_FORWARD!!");
         }
+        log.info("head {} baseline {}", head, baseline);
+        XStore.XWorking rev = XStore.XWorking.of(baseline.equals(head) ? baseline
+                                                                       : head);
+
+        XStoreFacade.addVertex(rev, mutatedVertices.values());
+        XStoreFacade.removeVertex(rev, deletedVertices);
+        XStoreFacade.addEdge(rev, mutatedEdges.values());
+        XStoreFacade.removeEdge(rev, deletedEdges);
+        rev.commit();
+        clear();
+        log.info("\t<<< end commit ===");
+
         graph.repo().unlock();
     }
 
@@ -388,6 +369,7 @@ public class XTransactionGraph implements TransactionalGraph, IndexableGraph, Ke
     public <T extends Element> Set<String> getIndexedKeys(Class<T> elementClass) {
         return null;
     }
+
     // =================================
     @Override
     public String toString() {

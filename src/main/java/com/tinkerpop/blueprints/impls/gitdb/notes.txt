@@ -1,6 +1,7 @@
 
-1. sanity check on commit
-2. revisions on store
+X 1. sanity check on commit
+X 2. revisions on store
+2a. re-factor index/tree
 3. indices
 4. keyIndices
 5. independent keys on V&E?
@@ -9,3 +10,5 @@
 8. mutable/immutable impls
 9. persist graph-level config
 10. figure out name for 'X'
+
+guava MapIteratorCache, MapRetrievalCache

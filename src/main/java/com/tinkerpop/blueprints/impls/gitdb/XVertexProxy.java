@@ -2,6 +2,7 @@
 package com.tinkerpop.blueprints.impls.gitdb;
 
 import com.google.common.base.Function;
+import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -22,13 +23,8 @@ import static java.util.Arrays.asList;
 
 @Slf4j
 public class XVertexProxy extends XElementProxy implements Vertex {
-    // so annoying. I blame James Gosling for my carpal tunnel.
-    public static Function<XVertexProxy, Vertex> UPCAST = new Function<XVertexProxy, Vertex>() {
-        @Override
-        public Vertex apply(XVertexProxy vp) {
-            return vp;
-        }
-    };
+    // So annoying. I blame James Gosling for my carpal tunnel.
+    public static Function<Vertex, Vertex> UPCAST = Functions.identity();
     public static Function<Integer, XVertexProxy> makeVertex(final GitGraph graph) {
         return new Function<Integer, XVertexProxy>() {
             @Override
